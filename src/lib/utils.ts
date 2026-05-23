@@ -32,12 +32,12 @@ export function getDoubanImageProxyConfig(): {
   const savedUrl = localStorage.getItem('doubanImageProxyUrl');
 
   // 优先级: localStorage > RUNTIME_CONFIG > 默认值
-  let proxyType: DoubanImageProxyType =
+  const proxyType: DoubanImageProxyType =
     (savedType as DoubanImageProxyType) ||
     (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY_TYPE ||
     DEFAULT_IMAGE_PROXY_TYPE;
 
-  let proxyUrl: string =
+  const proxyUrl: string =
     savedUrl ||
     (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY ||
     '';
@@ -107,12 +107,12 @@ export function getDoubanProxyConfig(): {
   const savedUrl = localStorage.getItem('doubanProxyUrl');
 
   // 优先级: localStorage > RUNTIME_CONFIG > 默认值
-  let proxyType: DoubanProxyType =
+  const proxyType: DoubanProxyType =
     (savedType as DoubanProxyType) ||
     (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY_TYPE ||
     DEFAULT_DOUBAN_PROXY_TYPE;
 
-  let proxyUrl: string =
+  const proxyUrl: string =
     savedUrl ||
     (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY ||
     '';

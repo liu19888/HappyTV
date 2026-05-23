@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const username = authInfo.username;
+    const role = authInfo.role;
 
     const {
       SiteName,
@@ -63,14 +63,8 @@ export async function POST(request: NextRequest) {
     const storage = getStorage();
 
     // 权限校验
-    if (username !== process.env.USERNAME) {
-      // 管理员
-      const user = adminConfig.UserConfig.Users.find(
-        (u) => u.username === username
-      );
-      if (!user || user.role !== 'admin') {
-        return NextResponse.json({ error: '权限不足' }, { status: 401 });
-      }
+    if (role !== 'owner' && role !== 'admin') {
+      return NextResponse.json({ error: '权限不足' }, { status: 401 });
     }
 
     // 更新缓存中的站点设置

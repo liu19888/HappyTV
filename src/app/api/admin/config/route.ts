@@ -20,10 +20,10 @@ export async function GET(request: NextRequest) {
   }
 
   const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
+  if (!authInfo || !authInfo.role) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const username = authInfo.username;
+  const role = authInfo.role;
 
   try {
     const config = await getConfig();
@@ -31,18 +31,15 @@ export async function GET(request: NextRequest) {
       Role: 'owner',
       Config: config,
     };
-    if (username === process.env.USERNAME) {
+    if (role === 'owner') {
       result.Role = 'owner';
+    } else if (role === 'admin') {
+      result.Role = 'admin';
     } else {
-      const user = config.UserConfig.Users.find((u) => u.username === username);
-      if (user && user.role === 'admin') {
-        result.Role = 'admin';
-      } else {
-        return NextResponse.json(
-          { error: '你是管理员吗你就访问？' },
-          { status: 401 }
-        );
-      }
+      return NextResponse.json(
+        { error: '权限不足' },
+        { status: 401 }
+      );
     }
 
     return NextResponse.json(result, {

@@ -111,8 +111,7 @@ class HybridCacheManager {
    * 获取当前用户名
    */
   private getCurrentUsername(): string | null {
-    const authInfo = getAuthInfoFromBrowserCookie();
-    return authInfo?.username || null;
+    return 'default'; // 纯密码模式：单用户
   }
 
   /**
@@ -1265,13 +1264,12 @@ export function getCacheStatus(): {
     };
   }
 
-  const authInfo = getAuthInfoFromBrowserCookie();
   return {
     hasPlayRecords: !!cacheManager.getCachedPlayRecords(),
     hasFavorites: !!cacheManager.getCachedFavorites(),
     hasSearchHistory: !!cacheManager.getCachedSearchHistory(),
     hasSkipConfigs: !!cacheManager.getCachedSkipConfigs(),
-    username: authInfo?.username || null,
+    username: 'default' as const, // 纯密码模式
   };
 }
 

@@ -8,14 +8,6 @@ export interface AdminConfig {
     DoubanProxy: string;
     DisableYellowFilter: boolean;
   };
-  UserConfig: {
-    AllowRegister: boolean;
-    Users: {
-      username: string;
-      role: 'user' | 'admin' | 'owner';
-      banned?: boolean;
-    }[];
-  };
   SourceConfig: {
     key: string;
     name: string;

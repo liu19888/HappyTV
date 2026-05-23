@@ -12,11 +12,11 @@ export async function GET(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const records = await db.getAllPlayRecords(authInfo.username);
+    const records = await db.getAllPlayRecords('default');
     return NextResponse.json(records, { status: 200 });
   } catch (err) {
     console.error('获取播放记录失败', err);
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       save_time: record.save_time ?? Date.now(),
     } as PlayRecord;
 
-    await db.savePlayRecord(authInfo.username, source, id, finalRecord);
+    await db.savePlayRecord('default', source, id, finalRecord);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
@@ -83,11 +83,11 @@ export async function DELETE(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const username = authInfo.username;
+    const username = 'default'; // 纯密码模式：单用户
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
 

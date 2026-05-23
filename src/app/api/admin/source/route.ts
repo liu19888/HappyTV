@@ -32,14 +32,14 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const username = authInfo.username;
+    const role = authInfo.role;
 
     // 基础校验
     const ACTIONS: Action[] = ['add', 'disable', 'enable', 'delete', 'sort'];
-    if (!username || !action || !ACTIONS.includes(action)) {
+    if (!role || !action || !ACTIONS.includes(action)) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
 
@@ -48,13 +48,8 @@ export async function POST(request: NextRequest) {
     const storage: IStorage | null = getStorage();
 
     // 权限与身份校验
-    if (username !== process.env.USERNAME) {
-      const userEntry = adminConfig.UserConfig.Users.find(
-        (u) => u.username === username
-      );
-      if (!userEntry || userEntry.role !== 'admin') {
-        return NextResponse.json({ error: '权限不足' }, { status: 401 });
-      }
+    if (role !== 'owner' && role !== 'admin') {
+      return NextResponse.json({ error: '权限不足' }, { status: 401 });
     }
 
     switch (action) {

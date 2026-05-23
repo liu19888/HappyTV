@@ -44,10 +44,7 @@ async function refreshRecordAndFavorites() {
   }
 
   try {
-    const users = await db.getAllUsers();
-    if (process.env.USERNAME && !users.includes(process.env.USERNAME)) {
-      users.push(process.env.USERNAME);
-    }
+    const user = 'default'; // 纯密码模式：单用户
     // 函数级缓存：key 为 `${source}+${id}`，值为 Promise<VideoDetail | null>
     const detailCache = new Map<string, Promise<SearchResult | null>>();
 
@@ -79,7 +76,7 @@ async function refreshRecordAndFavorites() {
       return promise;
     };
 
-    for (const user of users) {
+    // 纯密码模式单用户
       console.log(`开始处理用户: ${user}`);
 
       // 播放记录
@@ -180,7 +177,6 @@ async function refreshRecordAndFavorites() {
       } catch (err) {
         console.error(`获取用户收藏失败 (${user}):`, err);
       }
-    }
 
     console.log('刷新播放记录/收藏任务完成');
   } catch (err) {

@@ -1,0 +1,501 @@
+     1|/* eslint-disable @typescript-eslint/no-explicit-any, no-console */
+     2|
+     3|'use client';
+     4|
+     5|import {
+     6|  closestCenter,
+     7|  DndContext,
+     8|  PointerSensor,
+     9|  TouchSensor,
+    10|  useSensor,
+    11|  useSensors,
+    12|} from '@dnd-kit/core';
+    13|import {
+    14|  restrictToParentElement,
+    15|  restrictToVerticalAxis,
+    16|} from '@dnd-kit/modifiers';
+    17|import {
+    18|  arrayMove,
+    19|  SortableContext,
+    20|  useSortable,
+    21|  verticalListSortingStrategy,
+    22|} from '@dnd-kit/sortable';
+    23|import { CSS } from '@dnd-kit/utilities';
+    24|import {
+    25|  ChevronDown,
+    26|  ChevronUp,
+    27|  FolderOpen,
+    28|  Settings,
+    29|  Users,
+    30|  Video,
+    31|} from 'lucide-react';
+    32|import { GripVertical } from 'lucide-react';
+    33|import { Suspense, useCallback, useEffect, useState } from 'react';
+    34|import Swal from 'sweetalert2';
+    35|
+    36|import { AdminConfig, AdminConfigResult } from '@/lib/admin.types';
+    37|import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
+    38|
+    39|import PageLayout from '@/components/PageLayout';
+    40|
+    41|// 统一弹窗方法（必须在首次使用前定义）
+    42|const showError = (message: string) =>
+    43|  Swal.fire({ icon: 'error', title: '错误', text: message });
+    44|
+    45|const showSuccess = (message: string) =>
+    46|  Swal.fire({
+    47|    icon: 'success',
+    48|    title: '成功',
+    49|    text: message,
+    50|    timer: 2000,
+    51|    showConfirmButton: false,
+    52|  });
+    53|
+    54|// 新增站点配置类型
+    55|interface SiteConfig {
+    56|  SiteName: string;
+    57|  Announcement: string;
+    58|  SearchDownstreamMaxPage: number;
+    59|  SiteInterfaceCacheTime: number;
+    60|  ImageProxy: string;
+    61|  DoubanProxy: string;
+    62|  DisableYellowFilter: boolean;
+    63|}
+    64|
+    65|// 视频源数据类型
+    66|interface DataSource {
+    67|  name: string;
+    68|  key: string;
+    69|  api: string;
+    70|  detail?: string;
+    71|  disabled?: boolean;
+    72|  from: 'config' | 'custom';
+    73|}
+    74|
+    75|// 自定义分类数据类型
+    76|interface CustomCategory {
+    77|  name?: string;
+    78|  type: 'movie' | 'tv';
+    79|  query: string;
+    80|  disabled?: boolean;
+    81|  from: 'config' | 'custom';
+    82|}
+    83|
+    84|// 可折叠标签组件
+    85|interface CollapsibleTabProps {
+    86|  title: string;
+    87|  icon?: React.ReactNode;
+    88|  isExpanded: boolean;
+    89|  onToggle: () => void;
+    90|  children: React.ReactNode;
+    91|}
+    92|
+    93|const CollapsibleTab = ({
+    94|  title,
+    95|  icon,
+    96|  isExpanded,
+    97|  onToggle,
+    98|  children,
+    99|}: CollapsibleTabProps) => {
+   100|  return (
+   101|    <div className='rounded-xl shadow-sm mb-4 overflow-hidden bg-white/80 backdrop-blur-md dark:bg-gray-800/50 dark:ring-1 dark:ring-gray-700'>
+   102|      <button
+   103|        onClick={onToggle}
+   104|        className='w-full px-6 py-4 flex items-center justify-between bg-gray-50/70 dark:bg-gray-800/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 transition-colors'
+   105|      >
+   106|        <div className='flex items-center gap-3'>
+   107|          {icon}
+   108|          <h3 className='text-lg font-medium text-gray-900 dark:text-gray-100'>
+   109|            {title}
+   110|          </h3>
+   111|        </div>
+   112|        <div className='text-gray-500 dark:text-gray-400'>
+   113|          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+   114|        </div>
+   115|      </button>
+   116|
+   117|      {isExpanded && <div className='px-6 py-4'>{children}</div>}
+   118|    </div>
+   119|  );
+   120|};
+   121|
+   122|// 用户配置组件
+   123|interface UserConfigProps {
+   124|  config: AdminConfig | null;
+   125|  role: 'owner' | 'admin' | null;
+   126|  refreshConfig: () => Promise<void>;
+   127|}
+   128|
+   129|const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
+   130|  const [userSettings, setUserSettings] = useState({
+   131|    enableRegistration: false,
+   132|  });
+   133|  const [showAddUserForm, setShowAddUserForm] = useState(false);
+   134|  const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
+   135|  const [newUser, setNewUser] = useState({
+   136|    username: '',
+   137|    password: '',
+   138|  });
+   139|  const [changePasswordUser, setChangePasswordUser] = useState({
+   140|    username: '',
+   141|    password: '',
+   142|  });
+   143|
+   144|  // 当前登录用户名
+   145|  const currentUsername = getAuthInfoFromBrowserCookie()?.username || null;
+   146|
+   147|  // 检测存储类型是否为 d1
+   148|  const isD1Storage =
+   149|    typeof window !== 'undefined' &&
+   150|    (window as any).RUNTIME_CONFIG?.STORAGE_TYPE === 'd1';
+   151|  const isUpstashStorage =
+   152|    typeof window !== 'undefined' &&
+   153|    (window as any).RUNTIME_CONFIG?.STORAGE_TYPE === 'upstash';
+   154|
+   155|  useEffect(() => {
+   156|    if (config?.UserConfig) {
+   157|      setUserSettings({
+   158|        enableRegistration: config.UserConfig.AllowRegister,
+   159|      });
+   160|    }
+   161|  }, [config]);
+   162|
+   163|  // 切换允许注册设置
+   164|  const toggleAllowRegister = async (value: boolean) => {
+   165|    try {
+   166|      // 先更新本地 UI
+   167|      setUserSettings((prev) => ({ ...prev, enableRegistration: value }));
+   168|
+   169|      const res = await fetch('/api/admin/user', {
+   170|        method: 'POST',
+   171|        headers: { 'Content-Type': 'application/json' },
+   172|        body: JSON.stringify({
+   173|          action: 'setAllowRegister',
+   174|          allowRegister: value,
+   175|        }),
+   176|      });
+   177|
+   178|      if (!res.ok) {
+   179|        const data = await res.json().catch(() => ({}));
+   180|        throw new Error(data.error || `操作失败: ${res.status}`);
+   181|      }
+   182|
+   183|      await refreshConfig();
+   184|    } catch (err) {
+   185|      showError(err instanceof Error ? err.message : '操作失败');
+   186|      // revert toggle UI
+   187|      setUserSettings((prev) => ({ ...prev, enableRegistration: !value }));
+   188|    }
+   189|  };
+   190|
+   191|  const handleBanUser = async (uname: string) => {
+   192|    await handleUserAction('ban', uname);
+   193|  };
+   194|
+   195|  const handleUnbanUser = async (uname: string) => {
+   196|    await handleUserAction('unban', uname);
+   197|  };
+   198|
+   199|  const handleSetAdmin = async (uname: string) => {
+   200|    await handleUserAction('setAdmin', uname);
+   201|  };
+   202|
+   203|  const handleRemoveAdmin = async (uname: string) => {
+   204|    await handleUserAction('cancelAdmin', uname);
+   205|  };
+   206|
+   207|  const handleAddUser = async () => {
+   208|    if (!newUser.username || !newUser.password) return;
+   209|    await handleUserAction('add', newUser.username, newUser.password);
+   210|    setNewUser({ username: '', password: '' });
+   211|    setShowAddUserForm(false);
+   212|  };
+   213|
+   214|  const handleChangePassword = async () => {
+   215|    if (!changePasswordUser.username || !changePasswordUser.password) return;
+   216|    await handleUserAction(
+   217|      'changePassword',
+   218|      changePasswordUser.username,
+   219|      changePasswordUser.password
+   220|    );
+   221|    setChangePasswordUser({ username: '', password: '' });
+   222|    setShowChangePasswordForm(false);
+   223|  };
+   224|
+   225|  const handleShowChangePasswordForm = (username: string) => {
+   226|    setChangePasswordUser({ username, password: '' });
+   227|    setShowChangePasswordForm(true);
+   228|    setShowAddUserForm(false); // 关闭添加用户表单
+   229|  };
+   230|
+   231|  const handleDeleteUser = async (username: string) => {
+   232|    const { isConfirmed } = await Swal.fire({
+   233|      title: '确认删除用户',
+   234|      text: `删除用户 ${username} 将同时删除其搜索历史、播放记录和收藏夹，此操作不可恢复！`,
+   235|      icon: 'warning',
+   236|      showCancelButton: true,
+   237|      confirmButtonText: '确认删除',
+   238|      cancelButtonText: '取消',
+   239|      confirmButtonColor: '#dc2626',
+   240|    });
+   241|
+   242|    if (!isConfirmed) return;
+   243|
+   244|    await handleUserAction('deleteUser', username);
+   245|  };
+   246|
+   247|  // 通用请求函数
+   248|  const handleUserAction = async (
+   249|    action:
+   250|      | 'add'
+   251|      | 'ban'
+   252|      | 'unban'
+   253|      | 'setAdmin'
+   254|      | 'cancelAdmin'
+   255|      | 'changePassword'
+   256|      | 'deleteUser',
+   257|    targetUsername: string,
+   258|    targetPassword?: string
+   259|  ) => {
+   260|    try {
+   261|      const res = await fetch('/api/admin/user', {
+   262|        method: 'POST',
+   263|        headers: { 'Content-Type': 'application/json' },
+   264|        body: JSON.stringify({
+   265|          targetUsername,
+   266|          ...(targetPassword ? { targetPassword } : {}),
+   267|          action,
+   268|        }),
+   269|      });
+   270|
+   271|      if (!res.ok) {
+   272|        const data = await res.json().catch(() => ({}));
+   273|        throw new Error(data.error || `操作失败: ${res.status}`);
+   274|      }
+   275|
+   276|      // 成功后刷新配置（无需整页刷新）
+   277|      await refreshConfig();
+   278|    } catch (err) {
+   279|      showError(err instanceof Error ? err.message : '操作失败');
+   280|    }
+   281|  };
+   282|
+   283|  if (!config) {
+   284|    return (
+   285|      <div className='text-center text-gray-500 dark:text-gray-400'>
+   286|        加载中...
+   287|      </div>
+   288|    );
+   289|  }
+   290|
+   291|  return (
+   292|    <div className='space-y-6'>
+   293|      {/* 用户统计 */}
+   294|      <div>
+   295|        <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
+   296|          用户统计
+   297|        </h4>
+   298|        <div className='p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800'>
+   299|          <div className='text-2xl font-bold text-green-800 dark:text-green-300'>
+   300|            {config.UserConfig.Users.length}
+   301|          </div>
+   302|          <div className='text-sm text-green-600 dark:text-green-400'>
+   303|            总用户数
+   304|          </div>
+   305|        </div>
+   306|      </div>
+   307|
+   308|      {/* 注册设置 */}
+   309|      <div>
+   310|        <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
+   311|          注册设置
+   312|        </h4>
+   313|        <div className='flex items-center justify-between'>
+   314|          <label
+   315|            className={`text-gray-700 dark:text-gray-300 ${
+   316|              isD1Storage || isUpstashStorage ? 'opacity-50' : ''
+   317|            }`}
+   318|          >
+   319|            允许新用户注册
+   320|            {isD1Storage && (
+   321|              <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
+   322|                (D1 环境下请通过环境变量修改)
+   323|              </span>
+   324|            )}
+   325|            {isUpstashStorage && (
+   326|              <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
+   327|                (Upstash 环境下请通过环境变量修改)
+   328|              </span>
+   329|            )}
+   330|          </label>
+   331|          <button
+   332|            onClick={() =>
+   333|              !isD1Storage &&
+   334|              !isUpstashStorage &&
+   335|              toggleAllowRegister(!userSettings.enableRegistration)
+   336|            }
+   337|            disabled={isD1Storage || isUpstashStorage}
+   338|            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+   339|              userSettings.enableRegistration
+   340|                ? 'bg-green-600'
+   341|                : 'bg-gray-200 dark:bg-gray-700'
+   342|            } ${
+   343|              isD1Storage || isUpstashStorage
+   344|                ? 'opacity-50 cursor-not-allowed'
+   345|                : ''
+   346|            }`}
+   347|          >
+   348|            <span
+   349|              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+   350|                userSettings.enableRegistration
+   351|                  ? 'translate-x-6'
+   352|                  : 'translate-x-1'
+   353|              }`}
+   354|            />
+   355|          </button>
+   356|        </div>
+   357|      </div>
+   358|
+   359|      {/* 用户列表 */}
+   360|      <div>
+   361|        <div className='flex items-center justify-between mb-3'>
+   362|          <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+   363|            用户列表
+   364|          </h4>
+   365|          <button
+   366|            onClick={() => {
+   367|              setShowAddUserForm(!showAddUserForm);
+   368|              if (showChangePasswordForm) {
+   369|                setShowChangePasswordForm(false);
+   370|                setChangePasswordUser({ username: '', password: '' });
+   371|              }
+   372|            }}
+   373|            className='px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors'
+   374|          >
+   375|            {showAddUserForm ? '取消' : '添加用户'}
+   376|          </button>
+   377|        </div>
+   378|
+   379|        {/* 添加用户表单 */}
+   380|        {showAddUserForm && (
+   381|          <div className='mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700'>
+   382|            <div className='flex flex-col sm:flex-row gap-4 sm:gap-3'>
+   383|              <input
+   384|                type='text'
+   385|                placeholder='用户名'
+   386|                value={newUser.username}
+   387|                onChange={(e) =>
+   388|                  setNewUser((prev) => ({ ...prev, username: e.target.value }))
+   389|                }
+   390|                className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+   391|              />
+   392|              <input
+   393|                type='password'
+   394|                placeholder='密码'
+   395|                value={newUser.password}
+   396|                onChange={(e) =>
+   397|                  setNewUser((prev) => ({ ...prev, password: e.target.value }))
+   398|                }
+   399|                className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+   400|              />
+   401|              <button
+   402|                onClick={handleAddUser}
+   403|                disabled={!newUser.username || !newUser.password}
+   404|                className='w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors'
+   405|              >
+   406|                添加
+   407|              </button>
+   408|            </div>
+   409|          </div>
+   410|        )}
+   411|
+   412|        {/* 修改密码表单 */}
+   413|        {showChangePasswordForm && (
+   414|          <div className='mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700'>
+   415|            <h5 className='text-sm font-medium text-blue-800 dark:text-blue-300 mb-3'>
+   416|              修改用户密码
+   417|            </h5>
+   418|            <div className='flex flex-col sm:flex-row gap-4 sm:gap-3'>
+   419|              <input
+   420|                type='text'
+   421|                placeholder='用户名'
+   422|                value={changePasswordUser.username}
+   423|                disabled
+   424|                className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 cursor-not-allowed'
+   425|              />
+   426|              <input
+   427|                type='password'
+   428|                placeholder='新密码'
+   429|                value={changePasswordUser.password}
+   430|                onChange={(e) =>
+   431|                  setChangePasswordUser((prev) => ({
+   432|                    ...prev,
+   433|                    password: e.target.value,
+   434|                  }))
+   435|                }
+   436|                className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+   437|              />
+   438|              <button
+   439|                onClick={handleChangePassword}
+   440|                disabled={!changePasswordUser.password}
+   441|                className='w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors'
+   442|              >
+   443|                修改密码
+   444|              </button>
+   445|              <button
+   446|                onClick={() => {
+   447|                  setShowChangePasswordForm(false);
+   448|                  setChangePasswordUser({ username: '', password: '' });
+   449|                }}
+   450|                className='w-full sm:w-auto px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors'
+   451|              >
+   452|                取消
+   453|              </button>
+   454|            </div>
+   455|          </div>
+   456|        )}
+   457|
+   458|        {/* 用户列表 */}
+   459|        <div className='border border-gray-200 dark:border-gray-700 rounded-lg max-h-[28rem] overflow-y-auto overflow-x-auto'>
+   460|          <table className='min-w-full divide-y divide-gray-200 dark:divide-gray-700'>
+   461|            <thead className='bg-gray-50 dark:bg-gray-900'>
+   462|              <tr>
+   463|                <th
+   464|                  scope='col'
+   465|                  className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'
+   466|                >
+   467|                  用户名
+   468|                </th>
+   469|                <th
+   470|                  scope='col'
+   471|                  className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'
+   472|                >
+   473|                  角色
+   474|                </th>
+   475|                <th
+   476|                  scope='col'
+   477|                  className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'
+   478|                >
+   479|                  状态
+   480|                </th>
+   481|                <th
+   482|                  scope='col'
+   483|                  className='px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'
+   484|                >
+   485|                  操作
+   486|                </th>
+   487|              </tr>
+   488|            </thead>
+   489|            {/* 按规则排序用户：自己 -> 站长(若非自己) -> 管理员 -> 其他 */}
+   490|            {(() => {
+   491|              const sortedUsers = [...config.UserConfig.Users].sort((a, b) => {
+   492|                type UserInfo = (typeof config.UserConfig.Users)[number];
+   493|                const priority = (u: UserInfo) => {
+   494|                  if (u.username === currentUsername) return 0;
+   495|                  if (u.role === 'owner') return 1;
+   496|                  if (u.role === 'admin') return 2;
+   497|                  return 3;
+   498|                };
+   499|                return priority(a) - priority(b);
+   500|              });
+   501|

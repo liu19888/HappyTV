@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const history = await db.getSearchHistory(authInfo.username);
+    const history = await db.getSearchHistory('default');
     return NextResponse.json(history, { status: 200 });
   } catch (err) {
     console.error('获取搜索历史失败', err);
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,10 +55,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await db.addSearchHistory(authInfo.username, keyword);
+    await db.addSearchHistory('default', keyword);
 
     // 再次获取最新列表，确保客户端与服务端同步
-    const history = await db.getSearchHistory(authInfo.username);
+    const history = await db.getSearchHistory('default');
     return NextResponse.json(history.slice(0, HISTORY_LIMIT), { status: 200 });
   } catch (err) {
     console.error('添加搜索历史失败', err);
@@ -79,14 +79,14 @@ export async function DELETE(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const kw = searchParams.get('keyword')?.trim();
 
-    await db.deleteSearchHistory(authInfo.username, kw || undefined);
+    await db.deleteSearchHistory('default', kw || undefined);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {

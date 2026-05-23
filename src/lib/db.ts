@@ -134,19 +134,7 @@ export class DbManager {
   }
 
   // ---------- 用户相关 ----------
-  async registerUser(userName: string, password: string): Promise<void> {
-    await this.storage.registerUser(userName, password);
-  }
-
-  async verifyUser(userName: string, password: string): Promise<boolean> {
-    return this.storage.verifyUser(userName, password);
-  }
-
   // 检查用户是否已存在
-  async checkUserExist(userName: string): Promise<boolean> {
-    return this.storage.checkUserExist(userName);
-  }
-
   // ---------- 搜索历史 ----------
   async getSearchHistory(userName: string): Promise<string[]> {
     return this.storage.getSearchHistory(userName);
@@ -161,13 +149,6 @@ export class DbManager {
   }
 
   // 获取全部用户名
-  async getAllUsers(): Promise<string[]> {
-    if (typeof (this.storage as any).getAllUsers === 'function') {
-      return (this.storage as any).getAllUsers();
-    }
-    return [];
-  }
-
   // ---------- 管理员配置 ----------
   async getAdminConfig(): Promise<AdminConfig | null> {
     if (typeof (this.storage as any).getAdminConfig === 'function') {

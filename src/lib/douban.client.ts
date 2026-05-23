@@ -74,9 +74,9 @@ export function shouldUseDoubanClient(): boolean {
  */
 export async function fetchDoubanCategories(
   params: DoubanCategoriesParams,
-  corsProxyUrl: string = '',
-  useTencentCDN: boolean = false,
-  useAliCDN: boolean = false
+  corsProxyUrl = '',
+  useTencentCDN = false,
+  useAliCDN = false
 ): Promise<DoubanResult> {
   const { kind, category, type, pageLimit = 20, pageStart = 0 } = params;
 
@@ -210,9 +210,9 @@ interface DoubanListParams {
  */
 export async function fetchDoubanList(
   params: DoubanListParams,
-  corsProxyUrl: string = '',
-  useTencentCDN: boolean = false,
-  useAliCDN: boolean = false
+  corsProxyUrl = '',
+  useTencentCDN = false,
+  useAliCDN = false
 ): Promise<DoubanResult> {
   const { tag, type, pageLimit = 20, pageStart = 0 } = params;
 

@@ -2,10 +2,11 @@
 
 'use client';
 
-import { LogOut, Settings, Shield, User, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+
+import { LogOut, Settings, Shield, User, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import { checkForUpdates, CURRENT_VERSION, UpdateStatus } from '@/lib/version';

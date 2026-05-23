@@ -19,12 +19,11 @@ export async function GET(request: NextRequest) {
   }
 
   const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo || !authInfo.username) {
+  if (!authInfo || !authInfo.role) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const username = authInfo.username;
 
-  if (username !== process.env.USERNAME) {
+  if (authInfo.role !== 'owner') {
     return NextResponse.json({ error: '仅支持站长重置配置' }, { status: 401 });
   }
 

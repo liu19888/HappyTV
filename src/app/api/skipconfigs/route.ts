@@ -11,7 +11,7 @@ export const runtime = 'edge';
 export async function GET(request: NextRequest) {
   try {
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
 
     if (source && id) {
       // 获取单个配置
-      const config = await db.getSkipConfig(authInfo.username, source, id);
+      const config = await db.getSkipConfig('default', source, id);
       return NextResponse.json(config);
     } else {
       // 获取所有配置
-      const configs = await db.getAllSkipConfigs(authInfo.username);
+      const configs = await db.getAllSkipConfigs('default');
       return NextResponse.json(configs);
     }
   } catch (error) {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       outro_time: Number(config.outro_time) || 0,
     };
 
-    await db.setSkipConfig(authInfo.username, source, id, skipConfig);
+    await db.setSkipConfig('default', source, id, skipConfig);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const authInfo = getAuthInfoFromCookie(request);
-    if (!authInfo || !authInfo.username) {
+    if (!authInfo || !authInfo.role) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
@@ -96,7 +96,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '无效的key格式' }, { status: 400 });
     }
 
-    await db.deleteSkipConfig(authInfo.username, source, id);
+    await db.deleteSkipConfig('default', source, id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
