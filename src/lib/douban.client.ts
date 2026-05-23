@@ -1,5 +1,5 @@
 import { DoubanItem, DoubanResult } from './types';
-import { getDoubanProxyUrl } from './utils';
+import { getDoubanProxyConfig } from './utils';
 
 interface DoubanCategoriesParams {
   kind: 'tv' | 'movie';
@@ -26,7 +26,7 @@ interface DoubanCategoryApiResponse {
 }
 
 /**
- * 带超时的 fetch 请求
+ * 带超时的 fetch 请求（接收完整 URL，不内部处理代理）
  */
 async function fetchWithTimeout(
   url: string,
@@ -34,10 +34,6 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
-
-  // 检查是否使用代理
-  const proxyUrl = getDoubanProxyUrl();
-  const finalUrl = proxyUrl ? `${proxyUrl}${encodeURIComponent(url)}` : url;
 
   const fetchOptions: RequestInit = {
     ...options,
@@ -52,7 +48,7 @@ async function fetchWithTimeout(
   };
 
   try {
-    const response = await fetch(finalUrl, fetchOptions);
+    const response = await fetch(url, fetchOptions);
     clearTimeout(timeoutId);
     return response;
   } catch (error) {
@@ -65,14 +61,22 @@ async function fetchWithTimeout(
  * 检查是否应该使用客户端获取豆瓣数据
  */
 export function shouldUseDoubanClient(): boolean {
-  return getDoubanProxyUrl() !== null;
+  const { proxyType } = getDoubanProxyConfig();
+  return proxyType !== 'direct';
 }
 
 /**
  * 浏览器端豆瓣分类数据获取函数
+ * @param params 查询参数
+ * @param corsProxyUrl CORS代理URL前缀（用于 cors-proxy-zwei / cors-anywhere / custom）
+ * @param useTencentCDN 是否使用腾讯云CDN域名替换
+ * @param useAliCDN 是否使用阿里云CDN域名替换
  */
 export async function fetchDoubanCategories(
-  params: DoubanCategoriesParams
+  params: DoubanCategoriesParams,
+  corsProxyUrl: string = '',
+  useTencentCDN: boolean = false,
+  useAliCDN: boolean = false
 ): Promise<DoubanResult> {
   const { kind, category, type, pageLimit = 20, pageStart = 0 } = params;
 
@@ -93,10 +97,20 @@ export async function fetchDoubanCategories(
     throw new Error('pageStart 不能小于 0');
   }
 
-  const target = `https://m.douban.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`;
+  // 基础域名选择
+  let baseUrl = 'https://m.douban.com';
+  if (useTencentCDN) {
+    baseUrl = 'https://m.douban.cmliussss.net';
+  } else if (useAliCDN) {
+    baseUrl = 'https://m.douban.cmliussss.com';
+  }
+
+  const targetPath = `/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`;
+  const targetUrl = `${baseUrl}${targetPath}`;
+  const finalUrl = corsProxyUrl ? `${corsProxyUrl}${encodeURIComponent(targetUrl)}` : targetUrl;
 
   try {
-    const response = await fetchWithTimeout(target);
+    const response = await fetchWithTimeout(finalUrl);
 
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
@@ -132,35 +146,52 @@ export async function fetchDoubanCategories(
 }
 
 /**
- * 统一的豆瓣分类数据获取函数，根据代理设置选择使用服务端 API 或客户端代理获取
+ * 统一的豆瓣分类数据获取函数，根据代理类型选择使用服务端 API 或客户端代理获取
  */
 export async function getDoubanCategories(
   params: DoubanCategoriesParams
 ): Promise<DoubanResult> {
-  if (shouldUseDoubanClient()) {
-    // 使用客户端代理获取（当设置了代理 URL 时）
-    return fetchDoubanCategories(params);
-  } else {
-    // 使用服务端 API（当没有设置代理 URL 时）
-    const { kind, category, type, pageLimit = 20, pageStart = 0 } = params;
-    const response = await fetch(
-      `/api/douban/categories?kind=${kind}&category=${category}&type=${type}&limit=${pageLimit}&start=${pageStart}`
-    );
+  const { proxyType, proxyUrl } = getDoubanProxyConfig();
 
-    if (!response.ok) {
-      // 触发全局错误提示
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('globalError', {
-            detail: { message: '获取豆瓣分类数据失败' },
-          })
-        );
+  switch (proxyType) {
+    case 'cors-proxy-zwei':
+      return fetchDoubanCategories(params, 'https://ciao-cors.is-an.org/');
+    case 'cmliussss-cdn-tencent':
+      return fetchDoubanCategories(params, '', true, false);
+    case 'cmliussss-cdn-ali':
+      return fetchDoubanCategories(params, '', false, true);
+    case 'cors-anywhere':
+      return fetchDoubanCategories(params, 'https://cors-anywhere.com/');
+    case 'custom':
+      if (proxyUrl) {
+        return fetchDoubanCategories(params, proxyUrl);
       }
-      throw new Error('获取豆瓣分类数据失败');
-    }
-
-    return response.json();
+      // custom 但没填URL，fallback 到服务端
+      break;
+    case 'direct':
+    default:
+      break;
   }
+
+  // 直连 或 fallback：使用服务端 API
+  const { kind, category, type, pageLimit = 20, pageStart = 0 } = params;
+  const response = await fetch(
+    `/api/douban/categories?kind=${kind}&category=${category}&type=${type}&limit=${pageLimit}&start=${pageStart}`
+  );
+
+  if (!response.ok) {
+    // 触发全局错误提示
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('globalError', {
+          detail: { message: '获取豆瓣分类数据失败' },
+        })
+      );
+    }
+    throw new Error('获取豆瓣分类数据失败');
+  }
+
+  return response.json();
 }
 
 interface DoubanListParams {
@@ -170,36 +201,18 @@ interface DoubanListParams {
   pageStart?: number;
 }
 
-export async function getDoubanList(
-  params: DoubanListParams
-): Promise<DoubanResult> {
-  const { tag, type, pageLimit = 20, pageStart = 0 } = params;
-  if (shouldUseDoubanClient()) {
-    // 使用客户端代理获取（当设置了代理 URL 时）
-    return fetchDoubanList(params);
-  } else {
-    const response = await fetch(
-      `/api/douban?tag=${tag}&type=${type}&pageSize=${pageLimit}&pageStart=${pageStart}`
-    );
-
-    if (!response.ok) {
-      // 触发全局错误提示
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('globalError', {
-            detail: { message: '获取豆瓣列表数据失败' },
-          })
-        );
-      }
-      throw new Error('获取豆瓣列表数据失败');
-    }
-
-    return response.json();
-  }
-}
-
+/**
+ * 浏览器端豆瓣列表数据获取函数
+ * @param params 查询参数
+ * @param corsProxyUrl CORS代理URL前缀
+ * @param useTencentCDN 是否使用腾讯云CDN域名替换
+ * @param useAliCDN 是否使用阿里云CDN域名替换
+ */
 export async function fetchDoubanList(
-  params: DoubanListParams
+  params: DoubanListParams,
+  corsProxyUrl: string = '',
+  useTencentCDN: boolean = false,
+  useAliCDN: boolean = false
 ): Promise<DoubanResult> {
   const { tag, type, pageLimit = 20, pageStart = 0 } = params;
 
@@ -220,10 +233,20 @@ export async function fetchDoubanList(
     throw new Error('pageStart 不能小于 0');
   }
 
-  const target = `https://movie.douban.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
+  // 基础域名选择
+  let baseUrl = 'https://movie.douban.com';
+  if (useTencentCDN) {
+    baseUrl = 'https://movie.douban.cmliussss.net';
+  } else if (useAliCDN) {
+    baseUrl = 'https://movie.douban.cmliussss.com';
+  }
+
+  const targetPath = `/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
+  const targetUrl = `${baseUrl}${targetPath}`;
+  const finalUrl = corsProxyUrl ? `${corsProxyUrl}${encodeURIComponent(targetUrl)}` : targetUrl;
 
   try {
-    const response = await fetchWithTimeout(target);
+    const response = await fetchWithTimeout(finalUrl);
 
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
@@ -256,4 +279,53 @@ export async function fetchDoubanList(
     }
     throw new Error(`获取豆瓣分类数据失败: ${(error as Error).message}`);
   }
+}
+
+/**
+ * 统一的豆瓣列表数据获取函数，根据代理类型选择使用服务端 API 或客户端代理获取
+ */
+export async function getDoubanList(
+  params: DoubanListParams
+): Promise<DoubanResult> {
+  const { proxyType, proxyUrl } = getDoubanProxyConfig();
+
+  switch (proxyType) {
+    case 'cors-proxy-zwei':
+      return fetchDoubanList(params, 'https://ciao-cors.is-an.org/');
+    case 'cmliussss-cdn-tencent':
+      return fetchDoubanList(params, '', true, false);
+    case 'cmliussss-cdn-ali':
+      return fetchDoubanList(params, '', false, true);
+    case 'cors-anywhere':
+      return fetchDoubanList(params, 'https://cors-anywhere.com/');
+    case 'custom':
+      if (proxyUrl) {
+        return fetchDoubanList(params, proxyUrl);
+      }
+      // custom 但没填URL，fallback 到服务端
+      break;
+    case 'direct':
+    default:
+      break;
+  }
+
+  // 直连 或 fallback：使用服务端 API
+  const { tag, type, pageLimit = 20, pageStart = 0 } = params;
+  const response = await fetch(
+    `/api/douban?tag=${tag}&type=${type}&pageSize=${pageLimit}&pageStart=${pageStart}`
+  );
+
+  if (!response.ok) {
+    // 触发全局错误提示
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('globalError', {
+          detail: { message: '获取豆瓣列表数据失败' },
+        })
+      );
+    }
+    throw new Error('获取豆瓣列表数据失败');
+  }
+
+  return response.json();
 }

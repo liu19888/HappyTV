@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import { checkForUpdates, CURRENT_VERSION, UpdateStatus } from '@/lib/version';
+import type { DoubanImageProxyType, DoubanProxyType } from '@/lib/utils';
 
 interface AuthInfo {
   username?: string;
@@ -26,11 +27,15 @@ export const UserMenu: React.FC = () => {
 
   // 设置相关状态
   const [defaultAggregateSearch, setDefaultAggregateSearch] = useState(true);
-  const [doubanProxyUrl, setDoubanProxyUrl] = useState('');
-  const [imageProxyUrl, setImageProxyUrl] = useState('');
   const [enableOptimization, setEnableOptimization] = useState(true);
-  const [enableImageProxy, setEnableImageProxy] = useState(false);
-  const [enableDoubanProxy, setEnableDoubanProxy] = useState(false);
+
+  // 豆瓣数据代理 - 下拉选择模式
+  const [doubanDataSource, setDoubanDataSource] = useState<DoubanProxyType>('cmliussss-cdn-ali');
+  const [doubanProxyUrl, setDoubanProxyUrl] = useState('');
+
+  // 图片代理 - 下拉选择模式
+  const [doubanImageProxyType, setDoubanImageProxyType] = useState<DoubanImageProxyType>('cmliussss-cdn-ali');
+  const [imageProxyUrl, setImageProxyUrl] = useState('');
 
   // 修改密码相关状态
   const [newPassword, setNewPassword] = useState('');
@@ -69,32 +74,40 @@ export const UserMenu: React.FC = () => {
         setDefaultAggregateSearch(JSON.parse(savedAggregateSearch));
       }
 
-      const savedEnableDoubanProxy = localStorage.getItem('enableDoubanProxy');
-      const defaultDoubanProxy =
-        (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY || '';
-      if (savedEnableDoubanProxy !== null) {
-        setEnableDoubanProxy(JSON.parse(savedEnableDoubanProxy));
-      } else if (defaultDoubanProxy) {
-        setEnableDoubanProxy(true);
+      // 豆瓣数据代理类型
+      const savedDoubanDataSource = localStorage.getItem('doubanDataSource');
+      const defaultDoubanProxyType =
+        (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY_TYPE || 'cmliussss-cdn-ali';
+      if (savedDoubanDataSource !== null) {
+        setDoubanDataSource(savedDoubanDataSource as DoubanProxyType);
+      } else {
+        setDoubanDataSource(defaultDoubanProxyType);
       }
 
+      // 豆瓣代理自定义URL
       const savedDoubanProxyUrl = localStorage.getItem('doubanProxyUrl');
+      const defaultDoubanProxy =
+        (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY || '';
       if (savedDoubanProxyUrl !== null) {
         setDoubanProxyUrl(savedDoubanProxyUrl);
       } else if (defaultDoubanProxy) {
         setDoubanProxyUrl(defaultDoubanProxy);
       }
 
-      const savedEnableImageProxy = localStorage.getItem('enableImageProxy');
-      const defaultImageProxy =
-        (window as any).RUNTIME_CONFIG?.IMAGE_PROXY || '';
-      if (savedEnableImageProxy !== null) {
-        setEnableImageProxy(JSON.parse(savedEnableImageProxy));
-      } else if (defaultImageProxy) {
-        setEnableImageProxy(true);
+      // 图片代理类型
+      const savedImageProxyType = localStorage.getItem('doubanImageProxyType');
+      const defaultImageProxyType =
+        (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY_TYPE || 'cmliussss-cdn-ali';
+      if (savedImageProxyType !== null) {
+        setDoubanImageProxyType(savedImageProxyType as DoubanImageProxyType);
+      } else {
+        setDoubanImageProxyType(defaultImageProxyType);
       }
 
-      const savedImageProxyUrl = localStorage.getItem('imageProxyUrl');
+      // 图片代理自定义URL
+      const savedImageProxyUrl = localStorage.getItem('doubanImageProxyUrl');
+      const defaultImageProxy =
+        (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY || '';
       if (savedImageProxyUrl !== null) {
         setImageProxyUrl(savedImageProxyUrl);
       } else if (defaultImageProxy) {
@@ -225,6 +238,13 @@ export const UserMenu: React.FC = () => {
     }
   };
 
+  const handleDoubanDataSourceChange = (value: DoubanProxyType) => {
+    setDoubanDataSource(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('doubanDataSource', value);
+    }
+  };
+
   const handleDoubanProxyUrlChange = (value: string) => {
     setDoubanProxyUrl(value);
     if (typeof window !== 'undefined') {
@@ -232,10 +252,17 @@ export const UserMenu: React.FC = () => {
     }
   };
 
+  const handleDoubanImageProxyTypeChange = (value: DoubanImageProxyType) => {
+    setDoubanImageProxyType(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('doubanImageProxyType', value);
+    }
+  };
+
   const handleImageProxyUrlChange = (value: string) => {
     setImageProxyUrl(value);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('imageProxyUrl', value);
+      localStorage.setItem('doubanImageProxyUrl', value);
     }
   };
 
@@ -246,45 +273,23 @@ export const UserMenu: React.FC = () => {
     }
   };
 
-  const handleImageProxyToggle = (value: boolean) => {
-    setEnableImageProxy(value);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('enableImageProxy', JSON.stringify(value));
-    }
-  };
-
-  const handleDoubanProxyToggle = (value: boolean) => {
-    setEnableDoubanProxy(value);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('enableDoubanProxy', JSON.stringify(value));
-    }
-  };
-
   const handleResetSettings = () => {
-    const defaultImageProxy = (window as any).RUNTIME_CONFIG?.IMAGE_PROXY || '';
-    const defaultDoubanProxy =
-      (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY || '';
+    const defaultProxyType = 'cmliussss-cdn-ali';
 
     setDefaultAggregateSearch(true);
     setEnableOptimization(true);
-    setDoubanProxyUrl(defaultDoubanProxy);
-    setEnableDoubanProxy(!!defaultDoubanProxy);
-    setEnableImageProxy(!!defaultImageProxy);
-    setImageProxyUrl(defaultImageProxy);
+    setDoubanDataSource(defaultProxyType);
+    setDoubanProxyUrl('');
+    setDoubanImageProxyType(defaultProxyType);
+    setImageProxyUrl('');
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('defaultAggregateSearch', JSON.stringify(true));
       localStorage.setItem('enableOptimization', JSON.stringify(true));
-      localStorage.setItem('doubanProxyUrl', defaultDoubanProxy);
-      localStorage.setItem(
-        'enableDoubanProxy',
-        JSON.stringify(!!defaultDoubanProxy)
-      );
-      localStorage.setItem(
-        'enableImageProxy',
-        JSON.stringify(!!defaultImageProxy)
-      );
-      localStorage.setItem('imageProxyUrl', defaultImageProxy);
+      localStorage.setItem('doubanDataSource', defaultProxyType);
+      localStorage.setItem('doubanProxyUrl', '');
+      localStorage.setItem('doubanImageProxyType', defaultProxyType);
+      localStorage.setItem('doubanImageProxyUrl', '');
     }
   };
 
@@ -429,6 +434,10 @@ export const UserMenu: React.FC = () => {
     </>
   );
 
+  // 下拉选择框通用样式
+  const selectClassName = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100';
+  const inputClassName = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400';
+
   // 设置面板内容
   const settingsPanel = (
     <>
@@ -439,7 +448,7 @@ export const UserMenu: React.FC = () => {
       />
 
       {/* 设置面板 */}
-      <div className='fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl z-[1001] p-6'>
+      <div className='fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl z-[1001] p-6 max-h-[85vh] overflow-y-auto'>
         {/* 标题栏 */}
         <div className='flex items-center justify-between mb-6'>
           <div className='flex items-center gap-3'>
@@ -516,103 +525,78 @@ export const UserMenu: React.FC = () => {
           {/* 分割线 */}
           <div className='border-t border-gray-200 dark:border-gray-700'></div>
 
-          {/* 豆瓣代理开关 */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                启用豆瓣代理
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                启用后，豆瓣数据将通过代理服务器获取
-              </p>
-            </div>
-            <label className='flex items-center cursor-pointer'>
-              <div className='relative'>
-                <input
-                  type='checkbox'
-                  className='sr-only peer'
-                  checked={enableDoubanProxy}
-                  onChange={(e) => handleDoubanProxyToggle(e.target.checked)}
-                />
-                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
-              </div>
-            </label>
-          </div>
-
-          {/* 豆瓣代理地址设置 */}
+          {/* 豆瓣数据代理 - 下拉选择 */}
           <div className='space-y-3'>
             <div>
               <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                豆瓣代理地址
+                豆瓣数据代理
               </h4>
               <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                仅在启用豆瓣代理时生效，留空则使用服务器 API
+                选择豆瓣数据的获取方式，直连走服务器API
               </p>
             </div>
-            <input
-              type='text'
-              className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                enableDoubanProxy
-                  ? 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400'
-                  : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 placeholder-gray-400 dark:placeholder-gray-600 cursor-not-allowed'
-              }`}
-              placeholder='例如: https://proxy.example.com/fetch?url='
-              value={doubanProxyUrl}
-              onChange={(e) => handleDoubanProxyUrlChange(e.target.value)}
-              disabled={!enableDoubanProxy}
-            />
+            <select
+              className={selectClassName}
+              value={doubanDataSource}
+              onChange={(e) => handleDoubanDataSourceChange(e.target.value as DoubanProxyType)}
+            >
+              <option value='direct'>直连（走服务器API）</option>
+              <option value='cors-proxy-zwei'>CORS代理(Zwei)</option>
+              <option value='cmliussss-cdn-tencent'>豆瓣CDN(CMLiussss-腾讯云)</option>
+              <option value='cmliussss-cdn-ali'>豆瓣CDN(CMLiussss-阿里云)</option>
+              <option value='cors-anywhere'>CORS Anywhere</option>
+              <option value='custom'>自定义代理</option>
+            </select>
+
+            {/* 自定义代理URL - 仅在选择 custom 时显示 */}
+            {doubanDataSource === 'custom' && (
+              <input
+                type='text'
+                className={inputClassName}
+                placeholder='例如: https://proxy.example.com/fetch?url='
+                value={doubanProxyUrl}
+                onChange={(e) => handleDoubanProxyUrlChange(e.target.value)}
+              />
+            )}
           </div>
 
           {/* 分割线 */}
           <div className='border-t border-gray-200 dark:border-gray-700'></div>
 
-          {/* 图片代理开关 */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                启用图片代理
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                启用后，所有图片加载将通过代理服务器
-              </p>
-            </div>
-            <label className='flex items-center cursor-pointer'>
-              <div className='relative'>
-                <input
-                  type='checkbox'
-                  className='sr-only peer'
-                  checked={enableImageProxy}
-                  onChange={(e) => handleImageProxyToggle(e.target.checked)}
-                />
-                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
-              </div>
-            </label>
-          </div>
-
-          {/* 图片代理地址设置 */}
+          {/* 图片代理 - 下拉选择 */}
           <div className='space-y-3'>
             <div>
               <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                图片代理地址
+                图片代理
               </h4>
               <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                仅在启用图片代理时生效
+                选择豆瓣图片加载方式，直连不使用任何代理
               </p>
             </div>
-            <input
-              type='text'
-              className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                enableImageProxy
-                  ? 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400'
-                  : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 placeholder-gray-400 dark:placeholder-gray-600 cursor-not-allowed'
-              }`}
-              placeholder='例如: https://imageproxy.example.com/?url='
-              value={imageProxyUrl}
-              onChange={(e) => handleImageProxyUrlChange(e.target.value)}
-              disabled={!enableImageProxy}
-            />
+            <select
+              className={selectClassName}
+              value={doubanImageProxyType}
+              onChange={(e) => handleDoubanImageProxyTypeChange(e.target.value as DoubanImageProxyType)}
+            >
+              <option value='direct'>直连</option>
+              <option value='server'>服务器代理</option>
+              <option value='img3'>豆瓣官方精品CDN(阿里云)</option>
+              <option value='cmliussss-cdn-tencent'>豆瓣CDN(CMLiussss-腾讯云)</option>
+              <option value='cmliussss-cdn-ali'>豆瓣CDN(CMLiussss-阿里云)</option>
+              <option value='baidu'>百度图片代理</option>
+              <option value='custom'>自定义代理</option>
+            </select>
+
+            {/* 自定义代理URL - 仅在选择 custom 时显示 */}
+            {doubanImageProxyType === 'custom' && (
+              <input
+                type='text'
+                className={inputClassName}
+                placeholder='例如: https://imageproxy.example.com/?url='
+                value={imageProxyUrl}
+                onChange={(e) => handleImageProxyUrlChange(e.target.value)}
+              />
+            )}
           </div>
         </div>
 

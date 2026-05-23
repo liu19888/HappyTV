@@ -2,80 +2,122 @@
 
 import Hls from 'hls.js';
 
+// ============================================================
+// 豆瓣图片代理类型与配置
+// ============================================================
+
+export type DoubanImageProxyType =
+  | 'direct'
+  | 'server'
+  | 'img3'
+  | 'cmliussss-cdn-tencent'
+  | 'cmliussss-cdn-ali'
+  | 'baidu'
+  | 'custom';
+
+const DEFAULT_IMAGE_PROXY_TYPE: DoubanImageProxyType = 'cmliussss-cdn-ali';
+
 /**
- * 获取图片代理 URL 设置
+ * 获取豆瓣图片代理配置
  */
-export function getImageProxyUrl(): string | null {
-  if (typeof window === 'undefined') return null;
-
-  // 本地未开启图片代理，则不使用代理
-  const enableImageProxy = localStorage.getItem('enableImageProxy');
-  if (enableImageProxy !== null) {
-    if (!JSON.parse(enableImageProxy) as boolean) {
-      return null;
-    }
+export function getDoubanImageProxyConfig(): {
+  proxyType: DoubanImageProxyType;
+  proxyUrl: string;
+} {
+  if (typeof window === 'undefined') {
+    return { proxyType: DEFAULT_IMAGE_PROXY_TYPE, proxyUrl: '' };
   }
 
-  const localImageProxy = localStorage.getItem('imageProxyUrl');
-  if (localImageProxy != null) {
-    return localImageProxy.trim() ? localImageProxy.trim() : null;
-  }
+  const savedType = localStorage.getItem('doubanImageProxyType');
+  const savedUrl = localStorage.getItem('doubanImageProxyUrl');
 
-  // 如果未设置，则使用全局对象
-  const serverImageProxy = (window as any).RUNTIME_CONFIG?.IMAGE_PROXY;
-  return serverImageProxy && serverImageProxy.trim()
-    ? serverImageProxy.trim()
-    : null;
+  // 优先级: localStorage > RUNTIME_CONFIG > 默认值
+  let proxyType: DoubanImageProxyType =
+    (savedType as DoubanImageProxyType) ||
+    (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY_TYPE ||
+    DEFAULT_IMAGE_PROXY_TYPE;
+
+  let proxyUrl: string =
+    savedUrl ||
+    (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY ||
+    '';
+
+  return { proxyType, proxyUrl };
 }
 
 /**
- * 处理图片 URL，如果设置了图片代理则使用代理
+ * 处理图片 URL，根据代理类型使用对应策略
  */
 export function processImageUrl(originalUrl: string): string {
   if (!originalUrl) return originalUrl;
 
-  const proxyUrl = getImageProxyUrl();
-  if (!proxyUrl) return originalUrl;
+  // 仅处理含 doubanio.com 的 URL
+  if (!originalUrl.includes('doubanio.com')) return originalUrl;
 
-  return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
+  const { proxyType, proxyUrl } = getDoubanImageProxyConfig();
+
+  switch (proxyType) {
+    case 'server':
+      return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+    case 'img3':
+      return originalUrl.replace(/img\d+\.doubanio\.com/g, 'img3.doubanio.com');
+    case 'cmliussss-cdn-tencent':
+      return originalUrl.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.net');
+    case 'cmliussss-cdn-ali':
+      return originalUrl.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.com');
+    case 'baidu':
+      return `https://image.baidu.com/search/down?url=${encodeURIComponent(originalUrl)}`;
+    case 'custom':
+      if (proxyUrl) {
+        return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
+      }
+      return originalUrl;
+    case 'direct':
+    default:
+      return originalUrl;
+  }
 }
 
-/**
- * 获取豆瓣代理 URL 设置
- */
-export function getDoubanProxyUrl(): string | null {
-  if (typeof window === 'undefined') return null;
+// ============================================================
+// 豆瓣数据代理类型与配置
+// ============================================================
 
-  // 本地未开启豆瓣代理，则不使用代理
-  const enableDoubanProxy = localStorage.getItem('enableDoubanProxy');
-  if (enableDoubanProxy !== null) {
-    if (!JSON.parse(enableDoubanProxy) as boolean) {
-      return null;
-    }
-  }
+export type DoubanProxyType =
+  | 'direct'
+  | 'cors-proxy-zwei'
+  | 'cmliussss-cdn-tencent'
+  | 'cmliussss-cdn-ali'
+  | 'cors-anywhere'
+  | 'custom';
 
-  const localDoubanProxy = localStorage.getItem('doubanProxyUrl');
-  if (localDoubanProxy != null) {
-    return localDoubanProxy.trim() ? localDoubanProxy.trim() : null;
-  }
-
-  // 如果未设置，则使用全局对象
-  const serverDoubanProxy = (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY;
-  return serverDoubanProxy && serverDoubanProxy.trim()
-    ? serverDoubanProxy.trim()
-    : null;
-}
+const DEFAULT_DOUBAN_PROXY_TYPE: DoubanProxyType = 'cmliussss-cdn-ali';
 
 /**
- * 处理豆瓣 URL，如果设置了豆瓣代理则使用代理
+ * 获取豆瓣数据代理配置
  */
-export function processDoubanUrl(originalUrl: string): string {
-  if (!originalUrl) return originalUrl;
+export function getDoubanProxyConfig(): {
+  proxyType: DoubanProxyType;
+  proxyUrl: string;
+} {
+  if (typeof window === 'undefined') {
+    return { proxyType: DEFAULT_DOUBAN_PROXY_TYPE, proxyUrl: '' };
+  }
 
-  const proxyUrl = getDoubanProxyUrl();
-  if (!proxyUrl) return originalUrl;
+  const savedType = localStorage.getItem('doubanDataSource');
+  const savedUrl = localStorage.getItem('doubanProxyUrl');
 
-  return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
+  // 优先级: localStorage > RUNTIME_CONFIG > 默认值
+  let proxyType: DoubanProxyType =
+    (savedType as DoubanProxyType) ||
+    (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY_TYPE ||
+    DEFAULT_DOUBAN_PROXY_TYPE;
+
+  let proxyUrl: string =
+    savedUrl ||
+    (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY ||
+    '';
+
+  return { proxyType, proxyUrl };
 }
 
 export function cleanHtmlTags(text: string): string {
