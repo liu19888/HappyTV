@@ -5,8 +5,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { LogOut, Settings, Shield, User, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { LogOut, Settings, User, X } from 'lucide-react';
 
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import { checkForUpdates, CURRENT_VERSION, UpdateStatus } from '@/lib/version';
@@ -17,7 +16,6 @@ interface AuthInfo {
 }
 
 export const UserMenu: React.FC = () => {
-  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(null);
@@ -146,10 +144,6 @@ export const UserMenu: React.FC = () => {
     window.location.href = '/';
   };
 
-  const handleAdminPanel = () => {
-    router.push('/admin');
-  };
-
   const handleSettings = () => {
     setIsOpen(false);
     setIsSettingsOpen(true);
@@ -222,15 +216,11 @@ export const UserMenu: React.FC = () => {
     }
   };
 
-  // 检查是否显示管理面板按钮
-  const showAdminPanel =
-    authInfo?.role === 'owner' || authInfo?.role === 'admin';
-
   // 角色中文映射
   const getRoleText = (role?: string) => {
     switch (role) {
       case 'owner':
-        return '站长';
+        return 'happy';
       case 'admin':
         return '管理员';
       case 'user':
@@ -283,17 +273,6 @@ export const UserMenu: React.FC = () => {
             <Settings className='w-4 h-4 text-gray-500 dark:text-gray-400' />
             <span className='font-medium'>设置</span>
           </button>
-
-          {/* 管理面板按钮 */}
-          {showAdminPanel && (
-            <button
-              onClick={handleAdminPanel}
-              className='w-full px-3 py-2 text-left flex items-center gap-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm'
-            >
-              <Shield className='w-4 h-4 text-gray-500 dark:text-gray-400' />
-              <span className='font-medium'>管理面板</span>
-            </button>
-          )}
 
           {/* 分割线 */}
           <div className='my-1 border-t border-gray-200 dark:border-gray-700'></div>
