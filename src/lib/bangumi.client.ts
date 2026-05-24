@@ -19,6 +19,7 @@ export interface BangumiCalendarData {
       small: string;
       grid: string;
     };
+    url: string;
   }[];
 }
 
