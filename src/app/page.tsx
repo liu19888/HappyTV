@@ -83,7 +83,7 @@ function HomeClient() {
           getDoubanCategories({ kind: 'tv', category: 'tv', type: 'tv' }),
           getDoubanCategories({ kind: 'tv', category: 'show', type: 'show' }),
           GetBangumiCalendarData(),
-          getDoubanRecommends({ kind: 'tv', format: '短剧' }),
+          getDoubanRecommends({ kind: 'tv', format: '短剧', category: '国产' }),
         ]);
 
         if (moviesData.status === 'fulfilled' && moviesData.value.code === 200) {
@@ -376,6 +376,53 @@ function HomeClient() {
                 </ScrollableRow>
               </section>
 
+              {/* 新番放送 */}
+              <section className='mb-8'>
+                <div className='mb-4 flex items-center justify-between'>
+                  <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2'>
+                    <Calendar className='w-5 h-5 text-purple-500' />
+                    新番放送
+                  </h2>
+                  <Link
+                    href='/douban?type=anime'
+                    className='flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  >
+                    查看更多
+                    <ChevronRight className='w-4 h-4 ml-1' />
+                  </Link>
+                </div>
+                <ScrollableRow>
+                  {loading
+                    ? Array.from({ length: 8 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                        >
+                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
+                            <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
+                          </div>
+                          <div className='mt-2 h-4 bg-gray-200 rounded animate-pulse dark:bg-gray-800'></div>
+                        </div>
+                      ))
+                    : newAnimeShows.map((show, index) => (
+                        <div
+                          key={index}
+                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                        >
+                          <VideoCard
+                            from='douban'
+                            title={show.name_cn || show.name}
+                            poster={show.images?.large || show.images?.common || ''}
+                            douban_id={show.url?.split('/').pop() || ''}
+                            rate={show.rating?.score?.toString() || ''}
+                            year={show.air_date?.substring(0, 4) || ''}
+                            isBangumi
+                          />
+                        </div>
+                      ))}
+                </ScrollableRow>
+              </section>
+
               {/* 热门短剧 */}
               <section className='mb-8'>
                 <div className='mb-4 flex items-center justify-between'>
@@ -416,53 +463,6 @@ function HomeClient() {
                             douban_id={show.id}
                             rate={show.rate}
                             year={show.year}
-                          />
-                        </div>
-                      ))}
-                </ScrollableRow>
-              </section>
-
-              {/* 新番放送 */}
-              <section className='mb-8'>
-                <div className='mb-4 flex items-center justify-between'>
-                  <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2'>
-                    <Calendar className='w-5 h-5 text-purple-500' />
-                    新番放送
-                  </h2>
-                  <Link
-                    href='/douban?type=anime'
-                    className='flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                  >
-                    查看更多
-                    <ChevronRight className='w-4 h-4 ml-1' />
-                  </Link>
-                </div>
-                <ScrollableRow>
-                  {loading
-                    ? Array.from({ length: 8 }).map((_, index) => (
-                        <div
-                          key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
-                        >
-                          <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
-                            <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
-                          </div>
-                          <div className='mt-2 h-4 bg-gray-200 rounded animate-pulse dark:bg-gray-800'></div>
-                        </div>
-                      ))
-                    : newAnimeShows.map((show, index) => (
-                        <div
-                          key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
-                        >
-                          <VideoCard
-                            from='douban'
-                            title={show.name_cn || show.name}
-                            poster={show.images?.common || ''}
-                            douban_id={show.url?.split('/').pop() || ''}
-                            rate={show.rating?.score?.toString() || ''}
-                            year={show.air_date?.substring(0, 4) || ''}
-                            isBangumi
                           />
                         </div>
                       ))}
