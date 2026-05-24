@@ -329,3 +329,168 @@ export async function getDoubanList(
 
   return response.json();
 }
+
+interface DoubanRecommendsParams {
+  kind: 'tv' | 'movie';
+  pageLimit?: number;
+  pageStart?: number;
+  category?: string;
+  format?: string;
+  label?: string;
+  region?: string;
+  year?: string;
+  platform?: string;
+  sort?: string;
+}
+
+interface DoubanRecommendApiResponse {
+  total: number;
+  items: Array<{
+    id: string;
+    title: string;
+    year: string;
+    type: string;
+    pic: {
+      large: string;
+      normal: string;
+    };
+    rating: {
+      value: number;
+    };
+  }>;
+}
+
+/**
+ * 豆瓣推荐API客户端获取函数
+ */
+async function fetchDoubanRecommends(
+  params: DoubanRecommendsParams,
+  corsProxyUrl = '',
+  useTencentCDN = false,
+  useAliCDN = false
+): Promise<DoubanResult> {
+  const { kind, pageLimit = 20, pageStart = 0 } = params;
+  let { category, format, region, year, platform, sort, label } = params;
+  if (category === 'all') category = '';
+  if (format === 'all') format = '';
+  if (label === 'all') label = '';
+  if (region === 'all') region = '';
+  if (year === 'all') year = '';
+  if (platform === 'all') platform = '';
+  if (sort === 'T') sort = '';
+
+  const selectedCategories = { 类型: category } as Record<string, string>;
+  if (format) selectedCategories['形式'] = format;
+  if (region) selectedCategories['地区'] = region;
+
+  const tags: string[] = [];
+  if (category) tags.push(category);
+  if (!category && format) tags.push(format);
+  if (label) tags.push(label);
+  if (region) tags.push(region);
+  if (year) tags.push(year);
+  if (platform) tags.push(platform);
+
+  let baseUrl = 'https://m.douban.com';
+  if (useTencentCDN) {
+    baseUrl = 'https://m.douban.cmliussss.net';
+  } else if (useAliCDN) {
+    baseUrl = 'https://m.douban.cmliussss.com';
+  }
+
+  const reqParams = new URLSearchParams();
+  reqParams.append('refresh', '0');
+  reqParams.append('start', pageStart.toString());
+  reqParams.append('count', pageLimit.toString());
+  reqParams.append('selected_categories', JSON.stringify(selectedCategories));
+  reqParams.append('uncollect', 'false');
+  reqParams.append('score_range', '0,10');
+  reqParams.append('tags', tags.join(','));
+  if (sort) {
+    reqParams.append('sort', sort);
+  }
+
+  const targetUrl = `${baseUrl}/rexxar/api/v2/${kind}/recommend?${reqParams.toString()}`;
+  const finalUrl = corsProxyUrl ? `${corsProxyUrl}${encodeURIComponent(targetUrl)}` : targetUrl;
+
+  try {
+    const response = await fetchWithTimeout(finalUrl);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const doubanData: DoubanRecommendApiResponse = await response.json();
+    const list: DoubanItem[] = doubanData.items
+      .filter((item) => item.type === 'movie' || item.type === 'tv')
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        poster: item.pic?.normal || item.pic?.large || '',
+        rate: item.rating?.value ? item.rating.value.toFixed(1) : '',
+        year: item.year,
+      }));
+
+    return {
+      code: 200,
+      message: '获取成功',
+      list: list,
+    };
+  } catch (error) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('globalError', {
+          detail: { message: '获取豆瓣推荐数据失败' },
+        })
+      );
+    }
+    throw new Error(`获取豆瓣推荐数据失败: ${(error as Error).message}`);
+  }
+}
+
+/**
+ * 统一的豆瓣推荐数据获取函数
+ */
+export async function getDoubanRecommends(
+  params: DoubanRecommendsParams
+): Promise<DoubanResult> {
+  const { proxyType, proxyUrl } = getDoubanProxyConfig();
+
+  switch (proxyType) {
+    case 'cors-proxy-zwei':
+      return fetchDoubanRecommends(params, 'https://ciao-cors.is-an.org/');
+    case 'cmliussss-cdn-tencent':
+      return fetchDoubanRecommends(params, '', true, false);
+    case 'cmliussss-cdn-ali':
+      return fetchDoubanRecommends(params, '', false, true);
+    case 'cors-anywhere':
+      return fetchDoubanRecommends(params, 'https://cors-anywhere.com/');
+    case 'custom':
+      if (proxyUrl) {
+        return fetchDoubanRecommends(params, proxyUrl);
+      }
+      break;
+    case 'direct':
+    default:
+      break;
+  }
+
+  // 直连 或 fallback：使用服务端 API
+  const { kind, pageLimit = 20, pageStart = 0, category, format, region, year, platform, sort, label } = params;
+  const response = await fetch(
+    `/api/douban/recommends?kind=${kind}&limit=${pageLimit}&start=${pageStart}&category=${category || ''}&format=${format || ''}&region=${region || ''}&year=${year || ''}&platform=${platform || ''}&sort=${sort || ''}&label=${label || ''}`
+  );
+
+  if (!response.ok) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('globalError', {
+          detail: { message: '获取豆瓣推荐数据失败' },
+        })
+      );
+    }
+    throw new Error('获取豆瓣推荐数据失败');
+  }
+
+  return response.json();
+}

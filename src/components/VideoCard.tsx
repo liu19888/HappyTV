@@ -30,11 +30,12 @@ interface VideoCardProps {
   year?: string;
   from: 'playrecord' | 'favorite' | 'search' | 'douban';
   currentEpisode?: number;
-  douban_id?: string;
+  douban_id?: string | number;
   onDelete?: () => void;
   rate?: string;
   items?: SearchResult[];
   type?: string;
+  isBangumi?: boolean;
 }
 
 export default function VideoCard({
@@ -54,6 +55,7 @@ export default function VideoCard({
   rate,
   items,
   type = '',
+  isBangumi = false,
 }: VideoCardProps) {
   const router = useRouter();
   const [favorited, setFavorited] = useState(false);
