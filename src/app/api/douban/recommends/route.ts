@@ -24,6 +24,21 @@ interface DoubanRecommendApiResponse {
 
 export const runtime = 'nodejs';
 
+function normalizeParam(value: string | null) {
+  if (!value || value === 'all' || value === 'undefined') return '';
+  return value;
+}
+
+function appendDoubanParam(
+  params: URLSearchParams,
+  key: string,
+  value: string
+) {
+  if (value) {
+    params.append(key, value);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
@@ -31,25 +46,25 @@ export async function GET(request: NextRequest) {
   const kind = searchParams.get('kind');
   const pageLimit = parseInt(searchParams.get('limit') || '20');
   const pageStart = parseInt(searchParams.get('start') || '0');
-  const category =
-    searchParams.get('category') === 'all' ? '' : searchParams.get('category');
-  const format =
-    searchParams.get('format') === 'all' ? '' : searchParams.get('format');
-  const region =
-    searchParams.get('region') === 'all' ? '' : searchParams.get('region');
-  const year =
-    searchParams.get('year') === 'all' ? '' : searchParams.get('year');
-  const platform =
-    searchParams.get('platform') === 'all' ? '' : searchParams.get('platform');
-  const sort = searchParams.get('sort') === 'T' ? '' : searchParams.get('sort');
-  const label =
-    searchParams.get('label') === 'all' ? '' : searchParams.get('label');
+  const category = normalizeParam(searchParams.get('category'));
+  const format = normalizeParam(searchParams.get('format'));
+  const region = normalizeParam(searchParams.get('region'));
+  const year = normalizeParam(searchParams.get('year'));
+  const platform = normalizeParam(searchParams.get('platform'));
+  const sort =
+    searchParams.get('sort') === 'T'
+      ? ''
+      : normalizeParam(searchParams.get('sort'));
+  const label = normalizeParam(searchParams.get('label'));
 
   if (!kind) {
     return NextResponse.json({ error: '缺少必要参数: kind' }, { status: 400 });
   }
 
-  const selectedCategories = { 类型: category } as any;
+  const selectedCategories = {} as Record<string, string>;
+  if (category) {
+    selectedCategories['类型'] = category;
+  }
   if (format) {
     selectedCategories['形式'] = format;
   }
@@ -86,9 +101,7 @@ export async function GET(request: NextRequest) {
   params.append('uncollect', 'false');
   params.append('score_range', '0,10');
   params.append('tags', tags.join(','));
-  if (sort) {
-    params.append('sort', sort);
-  }
+  appendDoubanParam(params, 'sort', sort);
 
   const target = `${baseUrl}?${params.toString()}`;
   console.log(target);

@@ -23,13 +23,34 @@ export interface BangumiCalendarData {
   }[];
 }
 
-export async function GetBangumiCalendarData(): Promise<BangumiCalendarData[]> {
-  const response = await fetch('https://api.bgm.tv/calendar');
-  const data = await response.json();
-  const filteredData = data.map((item: BangumiCalendarData) => ({
+function normalizeCalendarData(data: BangumiCalendarData[]) {
+  return data.map((item) => ({
     ...item,
-    items: item.items.filter(bangumiItem => bangumiItem.images)
+    items: Array.isArray(item.items)
+      ? item.items.filter((bangumiItem) => bangumiItem.images)
+      : [],
   }));
+}
 
-  return filteredData;
+export async function GetBangumiCalendarData(): Promise<BangumiCalendarData[]> {
+  const loadCalendar = async (url: string) => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+      throw new Error('Bangumi calendar response is invalid');
+    }
+
+    return normalizeCalendarData(data as BangumiCalendarData[]);
+  };
+
+  try {
+    return await loadCalendar('/api/bangumi/calendar');
+  } catch {
+    // 兼容没有部署服务端代理的环境
+    return loadCalendar('https://api.bgm.tv/calendar');
+  }
 }

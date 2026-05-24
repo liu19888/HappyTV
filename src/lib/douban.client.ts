@@ -343,6 +343,16 @@ interface DoubanRecommendsParams {
   sort?: string;
 }
 
+function appendDoubanParam(
+  params: URLSearchParams,
+  key: string,
+  value: string | undefined
+) {
+  if (value) {
+    params.append(key, value);
+  }
+}
+
 interface DoubanRecommendApiResponse {
   total: number;
   items: Array<{
@@ -379,7 +389,8 @@ async function fetchDoubanRecommends(
   if (platform === 'all') platform = '';
   if (sort === 'T') sort = '';
 
-  const selectedCategories = { 类型: category } as Record<string, string>;
+  const selectedCategories = {} as Record<string, string>;
+  if (category) selectedCategories['类型'] = category;
   if (format) selectedCategories['形式'] = format;
   if (region) selectedCategories['地区'] = region;
 
@@ -406,9 +417,7 @@ async function fetchDoubanRecommends(
   reqParams.append('uncollect', 'false');
   reqParams.append('score_range', '0,10');
   reqParams.append('tags', tags.join(','));
-  if (sort) {
-    reqParams.append('sort', sort);
-  }
+  appendDoubanParam(reqParams, 'sort', sort);
 
   const targetUrl = `${baseUrl}/rexxar/api/v2/${kind}/recommend?${reqParams.toString()}`;
   const finalUrl = corsProxyUrl ? `${corsProxyUrl}${encodeURIComponent(targetUrl)}` : targetUrl;
@@ -477,9 +486,19 @@ export async function getDoubanRecommends(
 
   // 直连 或 fallback：使用服务端 API
   const { kind, pageLimit = 20, pageStart = 0, category, format, region, year, platform, sort, label } = params;
-  const response = await fetch(
-    `/api/douban/recommends?kind=${kind}&limit=${pageLimit}&start=${pageStart}&category=${category || ''}&format=${format || ''}&region=${region || ''}&year=${year || ''}&platform=${platform || ''}&sort=${sort || ''}&label=${label || ''}`
-  );
+  const requestParams = new URLSearchParams();
+  requestParams.set('kind', kind);
+  requestParams.set('limit', pageLimit.toString());
+  requestParams.set('start', pageStart.toString());
+  appendDoubanParam(requestParams, 'category', category);
+  appendDoubanParam(requestParams, 'format', format);
+  appendDoubanParam(requestParams, 'region', region);
+  appendDoubanParam(requestParams, 'year', year);
+  appendDoubanParam(requestParams, 'platform', platform);
+  appendDoubanParam(requestParams, 'sort', sort);
+  appendDoubanParam(requestParams, 'label', label);
+
+  const response = await fetch(`/api/douban/recommends?${requestParams.toString()}`);
 
   if (!response.ok) {
     if (typeof window !== 'undefined') {

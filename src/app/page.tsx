@@ -68,7 +68,13 @@ function HomeClient() {
         setLoading(true);
 
         // 并行获取热门电影、热门剧集、热门综艺、新番放送、热门短剧
-        const [moviesData, tvShowsData, varietyShowsData, bangumiData, shortDramaData] = await Promise.all([
+        const [
+          moviesData,
+          tvShowsData,
+          varietyShowsData,
+          bangumiData,
+          shortDramaData,
+        ] = await Promise.allSettled([
           getDoubanCategories({
             kind: 'movie',
             category: '热门',
@@ -80,26 +86,26 @@ function HomeClient() {
           getDoubanRecommends({ kind: 'tv', format: '短剧' }),
         ]);
 
-        if (moviesData.code === 200) {
-          setHotMovies(moviesData.list);
+        if (moviesData.status === 'fulfilled' && moviesData.value.code === 200) {
+          setHotMovies(moviesData.value.list);
         }
 
-        if (tvShowsData.code === 200) {
-          setHotTvShows(tvShowsData.list);
+        if (tvShowsData.status === 'fulfilled' && tvShowsData.value.code === 200) {
+          setHotTvShows(tvShowsData.value.list);
         }
 
-        if (varietyShowsData.code === 200) {
-          setHotVarietyShows(varietyShowsData.list);
+        if (varietyShowsData.status === 'fulfilled' && varietyShowsData.value.code === 200) {
+          setHotVarietyShows(varietyShowsData.value.list);
         }
 
         // Bangumi日历数据按周分组，扁平化为番剧列表
-        if (Array.isArray(bangumiData)) {
-          const allItems = bangumiData.flatMap((day: any) => day.items || []);
+        if (bangumiData.status === 'fulfilled' && Array.isArray(bangumiData.value)) {
+          const allItems = bangumiData.value.flatMap((day: any) => day.items || []);
           setNewAnimeShows(allItems);
         }
 
-        if (shortDramaData.code === 200) {
-          setHotShortDramas(shortDramaData.list);
+        if (shortDramaData.status === 'fulfilled' && shortDramaData.value.code === 200) {
+          setHotShortDramas(shortDramaData.value.list);
         }
       } catch (error) {
         console.error('获取豆瓣数据失败:', error);
