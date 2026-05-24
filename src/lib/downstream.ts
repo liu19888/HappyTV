@@ -15,80 +15,156 @@ interface ApiSearchItem {
   type_name?: string;
 }
 
+// 从 vod_play_url 解析 m3u8 集数链接：按 $$$ 拆分线路，选择最长（集数最多）的那条
+function parseEpisodes(vod_play_url: string | undefined): string[] {
+  if (!vod_play_url) return [];
+  const m3u8Regex = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
+  let episodes: string[] = [];
+  const lines = vod_play_url.split('$$$');
+  lines.forEach((url: string) => {
+    const matches = url.match(m3u8Regex) || [];
+    if (matches.length > episodes.length) {
+      episodes = matches;
+    }
+  });
+  return Array.from(new Set(episodes)).map((link: string) => {
+    link = link.substring(1); // 去掉开头的 $
+    const parenIndex = link.indexOf('(');
+    return parenIndex > 0 ? link.substring(0, parenIndex) : link;
+  });
+}
+
+function mapItemToResult(item: ApiSearchItem, apiSite: ApiSite): SearchResult {
+  return {
+    id: item.vod_id.toString(),
+    title: item.vod_name.trim().replace(/\s+/g, ' '),
+    poster: item.vod_pic,
+    episodes: parseEpisodes(item.vod_play_url),
+    source: apiSite.key,
+    source_name: apiSite.name,
+    class: item.vod_class,
+    year: item.vod_year
+      ? item.vod_year.match(/\d{4}/)?.[0] || ''
+      : 'unknown',
+    desc: cleanHtmlTags(item.vod_content || ''),
+    type_name: item.type_name,
+    douban_id: item.vod_douban_id,
+  };
+}
+
+// 拉取单页数据：区分超时 / HTTP 错误 / JSON 解析错误 / 空 list 四种情形
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchSearchPage(
+  url: string,
+  headers: HeadersInit,
+  timeoutMs: number,
+  sourceName: string,
+  pageNum: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { headers, signal: controller.signal });
+    if (!response.ok) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[搜索] ${sourceName} 第${pageNum}页 HTTP错误: status=${response.status}`
+      );
+      return null;
+    }
+    try {
+      return await response.json();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[搜索] ${sourceName} 第${pageNum}页 JSON解析失败:`,
+        (e as Error).message
+      );
+      return null;
+    }
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[搜索] ${sourceName} 第${pageNum}页 请求超时(${timeoutMs}ms)`
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[搜索] ${sourceName} 第${pageNum}页 网络错误:`,
+        (error as Error).message
+      );
+    }
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function searchFromApi(
   apiSite: ApiSite,
   query: string
 ): Promise<SearchResult[]> {
+  const apiBaseUrl = apiSite.api;
+  const apiName = apiSite.name;
+  const startTime = Date.now();
+
+  // 动态生成 Referer 为源站根地址
+  let referer = apiBaseUrl;
   try {
-    const apiBaseUrl = apiSite.api;
+    const u = new URL(apiBaseUrl);
+    referer = `${u.protocol}//${u.host}/`;
+  } catch {
+    // 保持原值兜底
+  }
+  const headers: HeadersInit = {
+    ...API_CONFIG.search.headers,
+    Referer: referer,
+  };
+
+  try {
     const apiUrl =
       apiBaseUrl + API_CONFIG.search.path + encodeURIComponent(query);
-    const apiName = apiSite.name;
 
-    // 添加超时处理
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const response = await fetch(apiUrl, {
-      headers: API_CONFIG.search.headers,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
+    const data = await fetchSearchPage(apiUrl, headers, 10000, apiName, 1);
+    if (!data) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[搜索] ${apiName} 完成，耗时${Date.now() - startTime}ms，命中0个`
+      );
       return [];
     }
 
-    const data = await response.json();
-    if (
-      !data ||
-      !data.list ||
-      !Array.isArray(data.list) ||
-      data.list.length === 0
-    ) {
+    // 苹果CMS 标准返回 code:1 表示成功
+    if (data.code !== undefined && data.code !== 1) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[搜索] ${apiName} 第1页 接口错误码: code=${data.code}, msg=${
+          data.msg || ''
+        }`
+      );
+      // eslint-disable-next-line no-console
+      console.log(
+        `[搜索] ${apiName} 完成，耗时${Date.now() - startTime}ms，命中0个`
+      );
       return [];
     }
-    // 处理第一页结果
-    const results = data.list.map((item: ApiSearchItem) => {
-      let episodes: string[] = [];
 
-      // 使用正则表达式从 vod_play_url 提取 m3u8 链接
-      if (item.vod_play_url) {
-        const m3u8Regex = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
-        // 先用 $$$ 分割
-        const vod_play_url_array = item.vod_play_url.split('$$$');
-        // 对每个分片做匹配，取匹配到最多的作为结果
-        vod_play_url_array.forEach((url: string) => {
-          const matches = url.match(m3u8Regex) || [];
-          if (matches.length > episodes.length) {
-            episodes = matches;
-          }
-        });
-      }
+    if (!data.list || !Array.isArray(data.list) || data.list.length === 0) {
+      // eslint-disable-next-line no-console
+      console.error(`[搜索] ${apiName} 第1页 空list`);
+      // eslint-disable-next-line no-console
+      console.log(
+        `[搜索] ${apiName} 完成，耗时${Date.now() - startTime}ms，命中0个`
+      );
+      return [];
+    }
 
-      episodes = Array.from(new Set(episodes)).map((link: string) => {
-        link = link.substring(1); // 去掉开头的 $
-        const parenIndex = link.indexOf('(');
-        return parenIndex > 0 ? link.substring(0, parenIndex) : link;
-      });
-
-      return {
-        id: item.vod_id.toString(),
-        title: item.vod_name.trim().replace(/\s+/g, ' '),
-        poster: item.vod_pic,
-        episodes,
-        source: apiSite.key,
-        source_name: apiName,
-        class: item.vod_class,
-        year: item.vod_year
-          ? item.vod_year.match(/\d{4}/)?.[0] || ''
-          : 'unknown',
-        desc: cleanHtmlTags(item.vod_content || ''),
-        type_name: item.type_name,
-        douban_id: item.vod_douban_id,
-      };
-    });
+    // 处理第一页结果，过滤掉 episodes 为空的条目
+    const results = (data.list as ApiSearchItem[])
+      .map((item) => mapItemToResult(item, apiSite))
+      .filter((r) => r.episodes.length > 0);
 
     const config = await getConfig();
     const MAX_SEARCH_PAGES: number = config.SiteConfig.SearchDownstreamMaxPage;
@@ -110,61 +186,38 @@ export async function searchFromApi(
             .replace('{page}', page.toString());
 
         const pagePromise = (async () => {
-          try {
-            const pageController = new AbortController();
-            const pageTimeoutId = setTimeout(
-              () => pageController.abort(),
-              8000
+          const pageData = await fetchSearchPage(
+            pageUrl,
+            headers,
+            6000,
+            apiName,
+            page
+          );
+          if (!pageData) return [] as SearchResult[];
+
+          if (pageData.code !== undefined && pageData.code !== 1) {
+            // eslint-disable-next-line no-console
+            console.error(
+              `[搜索] ${apiName} 第${page}页 接口错误码: code=${
+                pageData.code
+              }, msg=${pageData.msg || ''}`
             );
-
-            const pageResponse = await fetch(pageUrl, {
-              headers: API_CONFIG.search.headers,
-              signal: pageController.signal,
-            });
-
-            clearTimeout(pageTimeoutId);
-
-            if (!pageResponse.ok) return [];
-
-            const pageData = await pageResponse.json();
-
-            if (!pageData || !pageData.list || !Array.isArray(pageData.list))
-              return [];
-
-            return pageData.list.map((item: ApiSearchItem) => {
-              let episodes: string[] = [];
-
-              // 使用正则表达式从 vod_play_url 提取 m3u8 链接
-              if (item.vod_play_url) {
-                const m3u8Regex = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
-                episodes = item.vod_play_url.match(m3u8Regex) || [];
-              }
-
-              episodes = Array.from(new Set(episodes)).map((link: string) => {
-                link = link.substring(1); // 去掉开头的 $
-                const parenIndex = link.indexOf('(');
-                return parenIndex > 0 ? link.substring(0, parenIndex) : link;
-              });
-
-              return {
-                id: item.vod_id.toString(),
-                title: item.vod_name.trim().replace(/\s+/g, ' '),
-                poster: item.vod_pic,
-                episodes,
-                source: apiSite.key,
-                source_name: apiName,
-                class: item.vod_class,
-                year: item.vod_year
-                  ? item.vod_year.match(/\d{4}/)?.[0] || ''
-                  : 'unknown',
-                desc: cleanHtmlTags(item.vod_content || ''),
-                type_name: item.type_name,
-                douban_id: item.vod_douban_id,
-              };
-            });
-          } catch (error) {
-            return [];
+            return [] as SearchResult[];
           }
+
+          if (
+            !pageData.list ||
+            !Array.isArray(pageData.list) ||
+            pageData.list.length === 0
+          ) {
+            // eslint-disable-next-line no-console
+            console.error(`[搜索] ${apiName} 第${page}页 空list`);
+            return [] as SearchResult[];
+          }
+
+          return (pageData.list as ApiSearchItem[])
+            .map((item) => mapItemToResult(item, apiSite))
+            .filter((r) => r.episodes.length > 0);
         })();
 
         additionalPagePromises.push(pagePromise);
@@ -181,8 +234,20 @@ export async function searchFromApi(
       });
     }
 
+    // eslint-disable-next-line no-console
+    console.log(
+      `[搜索] ${apiName} 完成，耗时${Date.now() - startTime}ms，命中${
+        results.length
+      }个`
+    );
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`[搜索] ${apiName} 异常:`, (error as Error).message);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[搜索] ${apiName} 完成，耗时${Date.now() - startTime}ms，命中0个`
+    );
     return [];
   }
 }

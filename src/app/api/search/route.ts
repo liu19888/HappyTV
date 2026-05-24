@@ -29,8 +29,20 @@ export async function GET(request: Request) {
   const searchPromises = apiSites.map((site) => searchFromApi(site, query));
 
   try {
-    const results = await Promise.all(searchPromises);
-    let flattenedResults = results.flat();
+    const settled = await Promise.allSettled(searchPromises);
+    // 记录被 reject 的源，便于排查（searchFromApi 内部已 catch，正常不会到这里）
+    settled.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[搜索] 源 ${apiSites[i].name} Promise rejected:`,
+          r.reason
+        );
+      }
+    });
+    let flattenedResults = settled.flatMap((r) =>
+      r.status === 'fulfilled' ? r.value : []
+    );
     if (!config.SiteConfig.DisableYellowFilter) {
       flattenedResults = flattenedResults.filter((result) => {
         const typeName = result.type_name || '';
