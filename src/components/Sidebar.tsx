@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Clover, Film, Home, Menu, Search, Star, Tv } from 'lucide-react';
+import { Calendar, Clapperboard, Clover, Film, Home, Menu, Search, Star, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -139,6 +139,16 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
       icon: Clover,
       label: '综艺',
       href: '/douban?type=show',
+    },
+    {
+      icon: Calendar,
+      label: '动漫',
+      href: '/douban?type=tv&category=tv&tag=日本动画',
+    },
+    {
+      icon: Clapperboard,
+      label: '短剧',
+      href: '/douban?type=tv&category=tv&tag=短剧',
     },
   ]);
 
