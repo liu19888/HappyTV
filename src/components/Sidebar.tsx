@@ -148,7 +148,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
     {
       icon: Clapperboard,
       label: '短剧',
-      href: '/douban?type=tv&category=tv&tag=短剧',
+      href: '/duanju',
     },
   ]);
 

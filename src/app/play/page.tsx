@@ -111,7 +111,10 @@ function PlayPageClient() {
     needPreferRef.current = needPrefer;
   }, [needPrefer]);
   // 集数相关
-  const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(0);
+  const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(() => {
+    const episode = parseInt(searchParams.get('episode') || '1', 10);
+    return Number.isFinite(episode) && episode > 0 ? episode - 1 : 0;
+  });
 
   const currentSourceRef = useRef(currentSource);
   const currentIdRef = useRef(currentId);

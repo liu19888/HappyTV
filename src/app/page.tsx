@@ -14,8 +14,8 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 import { GetBangumiCalendarData } from '@/lib/bangumi.client';
-import { getDoubanCategories, getDoubanRecommends } from '@/lib/douban.client';
-import { BangumiItem, DoubanItem } from '@/lib/types';
+import { getDoubanCategories } from '@/lib/douban.client';
+import { BangumiItem, DoubanItem, SearchResult } from '@/lib/types';
 
 import CapsuleSwitch from '@/components/CapsuleSwitch';
 import ContinueWatching from '@/components/ContinueWatching';
@@ -30,7 +30,7 @@ function HomeClient() {
   const [hotTvShows, setHotTvShows] = useState<DoubanItem[]>([]);
   const [hotVarietyShows, setHotVarietyShows] = useState<DoubanItem[]>([]);
   const [newAnimeShows, setNewAnimeShows] = useState<BangumiItem[]>([]);
-  const [hotShortDramas, setHotShortDramas] = useState<DoubanItem[]>([]);
+  const [hotShortDramas, setHotShortDramas] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const { announcement } = useSite();
 
@@ -83,7 +83,7 @@ function HomeClient() {
           getDoubanCategories({ kind: 'tv', category: 'tv', type: 'tv' }),
           getDoubanCategories({ kind: 'tv', category: 'show', type: 'show' }),
           GetBangumiCalendarData(),
-          getDoubanRecommends({ kind: 'tv', format: '短剧', category: '国产' }),
+          fetch('/api/duanju/recommends').then((response) => response.json()),
         ]);
 
         if (moviesData.status === 'fulfilled' && moviesData.value.code === 200) {
@@ -105,7 +105,7 @@ function HomeClient() {
         }
 
         if (shortDramaData.status === 'fulfilled' && shortDramaData.value.code === 200) {
-          setHotShortDramas(shortDramaData.value.list);
+          setHotShortDramas(shortDramaData.value.data || []);
         }
       } catch (error) {
         console.error('获取豆瓣数据失败:', error);
@@ -431,7 +431,7 @@ function HomeClient() {
                     热门短剧
                   </h2>
                   <Link
-                    href='/douban?type=tv&category=tv&tag=短剧'
+                    href='/duanju'
                     className='flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                   >
                     查看更多
@@ -457,12 +457,16 @@ function HomeClient() {
                           className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
                         >
                           <VideoCard
-                            from='douban'
+                            from='search'
+                            id={show.id}
                             title={show.title}
                             poster={show.poster}
-                            douban_id={show.id}
-                            rate={show.rate}
+                            episodes={show.episodes.length}
+                            source={show.source}
+                            source_name={show.source_name}
+                            douban_id={show.douban_id}
                             year={show.year}
+                            type='tv'
                           />
                         </div>
                       ))}

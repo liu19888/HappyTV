@@ -36,6 +36,7 @@ interface VideoCardProps {
   items?: SearchResult[];
   type?: string;
   isBangumi?: boolean;
+  onCardClick?: () => void;
 }
 
 export default function VideoCard({
@@ -56,6 +57,7 @@ export default function VideoCard({
   items,
   type = '',
   isBangumi = false,
+  onCardClick,
 }: VideoCardProps) {
   const router = useRouter();
   const [favorited, setFavorited] = useState(false);
@@ -198,6 +200,11 @@ export default function VideoCard({
   );
 
   const handleClick = useCallback(() => {
+    if (onCardClick) {
+      onCardClick();
+      return;
+    }
+
     if (from === 'douban') {
       router.push(
         `/play?title=${encodeURIComponent(actualTitle.trim())}${
@@ -225,6 +232,7 @@ export default function VideoCard({
     isAggregate,
     actualQuery,
     actualSearchType,
+    onCardClick,
   ]);
 
   const config = useMemo(() => {
