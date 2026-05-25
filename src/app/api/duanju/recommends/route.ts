@@ -6,6 +6,7 @@ import { getCacheTime } from '@/lib/config';
 import { getDuanjuRecommends } from '@/lib/duanju';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
