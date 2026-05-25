@@ -1,0 +1,4 @@
+  部署方式：
+    bash
+    docker pull ghcr.io/liu19888/happytv:latest
+    docker run -d -p 3000:3000 -e PASSWORD=你的密码 ghcr.io/liu19888/happytv:latest
